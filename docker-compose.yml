@@ -1,0 +1,77 @@
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - vpn
+      - radarr
+      - jackett
+      - qbittorrent
+    restart: unless-stopped
+
+  vpn:
+    image: qmcgaw/gluetun:latest
+    container_name: vpn
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 8888:8888/tcp # HTTP proxy
+      - 8388:8388/tcp # Shadowsocks
+      - 8388:8388/udp # Shadowsocks
+      - 8389:8389/udp # Gluetun-Shadowsocks
+      - 8389:8389/tcp # Gluetun-Shadowsocks
+      - 8889:8889/tcp # Gluetun
+    volumes:
+      - ./config/gluetun:/gluetun
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1026
+      - PGID=101
+      - TZ=America/Los_Angeles
+      - UMASK=022
+      - WEBUI_PORT=8090
+      - WEBUI_URL=/qbittorrent/
+    volumes:
+      - ~/Media:/downloads
+      - ./config/qbittorrent/:/config/qBittorrent
+    network_mode: service:vpn
+    restart: unless-stopped
+
+  jackett:
+    image: linuxserver/jackett:latest
+    container_name: vpn-jackett
+    environment:
+      - PUID=1026
+      - PGID=101
+      - TZ=America/Los_Angeles
+    volumes:
+      - ./config/jackett/config:/config
+    network_mode: service:vpn
+    restart: unless-stopped
+
+  radarr:
+    image: linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1026
+      - PGID=101
+      - TZ=America/Los_Angeles
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config/radarr3/config:/config
+      - ~/Media:/movies
+    network_mode: service:vpn
+    depends_on:
+      - jackett
+      - qbittorrent
+    restart: unless-stopped
